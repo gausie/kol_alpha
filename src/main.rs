@@ -19,44 +19,44 @@ fn classify_alphas(palette: &[u8]) -> Vec<u8> {
 }
 
 fn eraser(
-    index: &u16,
+    index: u16,
     width: u16,
     visited: &mut Vec<u16>,
     input: &Vec<u8>,
     output: &mut Vec<u8>,
     alphas: &Vec<u8>,
 ) {
-    if visited.contains(index) || index < &0 || index >= &input.len().try_into().unwrap() {
+    if visited.contains(&index) || index >= input.len().try_into().unwrap() {
         return;
     }
 
-    visited.push(*index);
+    visited.push(index);
 
-    if !alphas.contains(&input[*index as usize]) {
+    if !alphas.contains(&input[index as usize]) {
         return;
     }
 
     // Set to white
-    output[*index as usize] = 0;
+    output[index as usize] = 0;
 
     // Look to the left if we're not on the left-most column
-    if index > &(index / width) {
-        eraser(&(index - 1), width, visited, input, output, alphas);
+    if index > (index / width) {
+        eraser(index - 1, width, visited, input, output, alphas);
     }
 
     // Look to the right if we're not on the right-most column
-    if index < &((index / width) + (width - 1)) {
-        eraser(&(index + 1), width, visited, input, output, alphas);
+    if index < ((index / width) + (width - 1)) {
+        eraser(index + 1, width, visited, input, output, alphas);
     }
 
     // Look above if we're not at the top
-    if index > &width {
-        eraser(&(index - width), width, visited, input, output, alphas);
+    if index > width {
+        eraser(index - width, width, visited, input, output, alphas);
     }
 
     // Look below if we're not at the bottom
-    if (*index as usize) < (input.len() - width as usize) {
-        eraser(&(index + width), width, visited, input, output, alphas);
+    if (index as usize) < (input.len() - width as usize) {
+        eraser(index + width, width, visited, input, output, alphas);
     }
 }
 
@@ -114,7 +114,7 @@ fn main() {
         // Start a flood erase from each corner
         for start in [0, width - 1, canvas_length - width, canvas_length - 1] {
             eraser(
-                &start,
+                start,
                 width,
                 &mut visited,
                 &canvas,
