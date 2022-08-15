@@ -15,29 +15,29 @@ fn classify_alphas(palette: &[u8]) -> Vec<u8> {
         i += 1;
     }
 
-    return transparents;
+    transparents
 }
 
 fn eraser(
-    index: &usize,
-    width: usize,
-    visited: &mut Vec<usize>,
+    index: &u16,
+    width: u16,
+    visited: &mut Vec<u16>,
     input: &Vec<u8>,
     output: &mut Vec<u8>,
     alphas: &Vec<u8>,
 ) {
-    if visited.contains(index) || index < &0 || index >= &input.len() {
+    if visited.contains(index) || index < &0 || index >= &input.len().try_into().unwrap() {
         return;
     }
 
     visited.push(*index);
 
-    if !alphas.contains(&input[*index]) {
+    if !alphas.contains(&input[*index as usize]) {
         return;
     }
 
     // Set to white
-    output[*index] = 0;
+    output[*index as usize] = 0;
 
     // Look to the left if we're not on the left-most column
     if index > &(index / width) {
@@ -55,7 +55,7 @@ fn eraser(
     }
 
     // Look below if we're not at the bottom
-    if index < &(input.len() - width) {
+    if (*index as usize) < (input.len() - width as usize) {
         eraser(&(index + width), width, visited, input, output, alphas);
     }
 }
@@ -65,8 +65,8 @@ fn main() {
     let file = File::open("./src/".to_owned() + name + ".gif").unwrap();
     let mut decoder = Decoder::new(file).unwrap();
 
-    let width = usize::from(decoder.width());
-    let height = usize::from(decoder.height());
+    let width = decoder.width();
+    let height = decoder.height();
 
     // Assess the gif's palette and return a list of indices that we should consider
     // transparent when flood filling.
@@ -77,30 +77,26 @@ fn main() {
     let output_palette: [u8; 6] = [255, 255, 255, 0, 0, 0];
     let mut encoder = Encoder::new(
         &mut mask,
-        width.try_into().unwrap(),
-        height.try_into().unwrap(),
+        width,
+        height,
         &output_palette,
     )
     .unwrap();
     encoder.set_repeat(Repeat::Infinite).unwrap();
 
-    let mut canvas: Vec<u8> = (0..(width * height)).map(|_| 0).collect();
-    let black_canvas: Vec<u8> = (0..(width * height)).map(|_| 1).collect();
+    let canvas_length = width * height;
+    let mut canvas: Vec<u8> = (0..canvas_length).map(|_| 0).collect();
+    let black_canvas: Vec<u8> = (0..canvas_length).map(|_| 1).collect();
 
     while let Some(frame) = decoder.read_next_frame().unwrap() {
-        let frame_width = usize::from(frame.width);
-        let frame_height = usize::from(frame.height);
-        let frame_top = usize::from(frame.top);
-        let frame_left = usize::from(frame.left);
-
         // Subframe offset in canvas
-        let offset = (frame_top * width) + frame_left;
+        let offset = (frame.top * width) + frame.left;
         
         // Apply new frame to the canvas we're maintaining
-        for y in 0..frame_height {
-            for x in 0..frame_width {
-                let value = frame.buffer[(y * frame_width) + x];
-                let i = offset + x + (width * y);
+        for y in 0..frame.height {
+            for x in 0..frame.width {
+                let value = frame.buffer[((y * frame.width) + x) as usize];
+                let i = (offset + x + (width * y)) as usize;
                 // Only change the index if it is not our "transparent" index
                 canvas[i] = match frame.transparent {
                     Some(alpha) if alpha == value => canvas[i],
@@ -116,7 +112,7 @@ fn main() {
         let mut visited = vec![];
         
         // Start a flood erase from each corner
-        for start in [0, width - 1, canvas.len() - width, canvas.len() - 1] {
+        for start in [0, width - 1, canvas_length - width, canvas_length - 1] {
             eraser(
                 &start,
                 width,
@@ -129,9 +125,9 @@ fn main() {
 
         // Extract a subframe from our erased image the same size as the input frame
         let mut new_buffer = vec![];
-        for y in 0..frame_height {
-            for x in 0..frame_width {
-                let i = offset + x + (width * y);
+        for y in 0..frame.height {
+            for x in 0..frame.width {
+                let i = (offset + x + (width * y)) as usize;
                 new_buffer.push(erased[i]);
                 // We could consider comparing our erased[i] to our previous canvas here
                 // and use the transparent index, but it's hardly worth it.
