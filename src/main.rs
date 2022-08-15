@@ -1,6 +1,6 @@
 use gif::{Decoder, Encoder, Repeat};
-use std::fs::File;
 use std::borrow::Cow;
+use std::fs::File;
 
 fn classify_alphas(palette: &[u8]) -> Vec<u8> {
     let mut transparents: Vec<u8> = Vec::new();
@@ -26,7 +26,9 @@ fn eraser(
     output: &mut Vec<u8>,
     alphas: &Vec<u8>,
 ) {
-    if visited.contains(&index) || index >= input.len().try_into().unwrap() {
+    let length: u16 = input.len().try_into().unwrap();
+
+    if visited.contains(&index) || index >= length {
         return;
     }
 
@@ -40,22 +42,22 @@ fn eraser(
     output[index as usize] = 0;
 
     // Look to the left if we're not on the left-most column
-    if index > (index / width) {
+    if index > index / width {
         eraser(index - 1, width, visited, input, output, alphas);
     }
 
     // Look to the right if we're not on the right-most column
-    if index < ((index / width) + (width - 1)) {
+    if index < (index / width) + (width - 1) {
         eraser(index + 1, width, visited, input, output, alphas);
     }
 
     // Look above if we're not at the top
-    if index > width {
+    if index > width - 1 {
         eraser(index - width, width, visited, input, output, alphas);
     }
 
     // Look below if we're not at the bottom
-    if (index as usize) < (input.len() - width as usize) {
+    if index < length - width {
         eraser(index + width, width, visited, input, output, alphas);
     }
 }
@@ -75,13 +77,7 @@ fn main() {
     let mut mask = File::create("src/".to_owned() + name + ".mask.gif").unwrap();
 
     let output_palette: [u8; 6] = [255, 255, 255, 0, 0, 0];
-    let mut encoder = Encoder::new(
-        &mut mask,
-        width,
-        height,
-        &output_palette,
-    )
-    .unwrap();
+    let mut encoder = Encoder::new(&mut mask, width, height, &output_palette).unwrap();
     encoder.set_repeat(Repeat::Infinite).unwrap();
 
     let canvas_length = width * height;
@@ -91,7 +87,6 @@ fn main() {
     while let Some(frame) = decoder.read_next_frame().unwrap() {
         // Subframe offset in canvas
         let offset = (frame.top * width) + frame.left;
-        
         // Apply new frame to the canvas we're maintaining
         for y in 0..frame.height {
             for x in 0..frame.width {
@@ -110,17 +105,9 @@ fn main() {
         let mut erased = black_canvas.clone();
 
         let mut visited = vec![];
-        
         // Start a flood erase from each corner
         for start in [0, width - 1, canvas_length - width, canvas_length - 1] {
-            eraser(
-                start,
-                width,
-                &mut visited,
-                &canvas,
-                &mut erased,
-                &alphas,
-            );
+            eraser(start, width, &mut visited, &canvas, &mut erased, &alphas);
         }
 
         // Extract a subframe from our erased image the same size as the input frame
