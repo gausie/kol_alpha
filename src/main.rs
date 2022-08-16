@@ -71,14 +71,14 @@ fn eraser(
     Ok(())
 }
 
-fn create_encoder(
-    file: &mut File,
-    width: u16,
-    height: u16,
-) -> Result<Encoder<&mut File>, gif::EncodingError> {
+fn create_encoder(width: u16, height: u16) -> Result<Encoder<File>> {
+    let file = File::create("./output.gif").context("Failed to create output file")?;
     let output_palette: [u8; 6] = [255, 255, 255, 0, 0, 0];
-    let mut encoder = Encoder::new(file, width, height, &output_palette)?;
-    encoder.set_repeat(Repeat::Infinite)?;
+    let mut encoder = Encoder::new(file, width, height, &output_palette)
+        .context("Failed to create new encoder")?;
+    encoder
+        .set_repeat(Repeat::Infinite)
+        .context("Failed to set gif to repeat infinitely")?;
     Ok(encoder)
 }
 
@@ -99,10 +99,7 @@ fn main() -> Result<()> {
             .context("Failed to decode input file palette")?,
     )?;
 
-    let mut file = File::create("./output.gif").context("Failed to create output file")?;
-
-    let mut encoder =
-        create_encoder(&mut file, width, height).context("Failed to create encoder")?;
+    let mut encoder = create_encoder(width, height).context("Failed to create encoder")?;
 
     let canvas_length = width * height;
     let mut canvas: Vec<u8> = vec![0; canvas_length as usize];
