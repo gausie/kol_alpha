@@ -3,7 +3,7 @@ use gif::{Decoder, Encoder, Frame, Repeat};
 use std::borrow::Cow;
 use std::fs::File;
 
-fn classify_alphas(palette: &[u8]) -> Vec<u8> {
+fn classify_alphas(palette: &[u8]) -> Result<Vec<u8>> {
     let mut transparents = vec![];
     let mut i = 0;
 
@@ -11,12 +11,15 @@ fn classify_alphas(palette: &[u8]) -> Vec<u8> {
         // We're assuming these are greyscale and as such never checking more
         // than the first byte
         if (palette[i * 3]) > 203 {
-            transparents.push(i.try_into().unwrap());
+            transparents.push(
+                i.try_into()
+                    .context("Palette length too large to fit into u8")?,
+            );
         }
         i += 1;
     }
 
-    transparents
+    Ok(transparents)
 }
 
 fn eraser(
@@ -26,17 +29,20 @@ fn eraser(
     input: &Vec<u8>,
     output: &mut Vec<u8>,
     alphas: &Vec<u8>,
-) {
-    let length: u16 = input.len().try_into().unwrap();
+) -> Result<()> {
+    let length: u16 = input
+        .len()
+        .try_into()
+        .context("Canvas length too large to fit into u16")?;
 
     if visited.contains(&index) || index >= length {
-        return;
+        return Ok(());
     }
 
     visited.push(index);
 
     if !alphas.contains(&input[index as usize]) {
-        return;
+        return Ok(());
     }
 
     // Set to white
@@ -44,23 +50,25 @@ fn eraser(
 
     // Look to the left if we're not on the left-most column
     if index > index / width {
-        eraser(index - 1, width, visited, input, output, alphas);
+        eraser(index - 1, width, visited, input, output, alphas)?;
     }
 
     // Look to the right if we're not on the right-most column
     if index < (index / width) + (width - 1) {
-        eraser(index + 1, width, visited, input, output, alphas);
+        eraser(index + 1, width, visited, input, output, alphas)?;
     }
 
     // Look above if we're not at the top
     if index > width - 1 {
-        eraser(index - width, width, visited, input, output, alphas);
+        eraser(index - width, width, visited, input, output, alphas)?;
     }
 
     // Look below if we're not at the bottom
     if index < length - width {
-        eraser(index + width, width, visited, input, output, alphas);
+        eraser(index + width, width, visited, input, output, alphas)?;
     }
+
+    Ok(())
 }
 
 fn create_encoder(
@@ -89,7 +97,7 @@ fn main() -> Result<()> {
         decoder
             .palette()
             .context("Failed to decode input file palette")?,
-    );
+    )?;
 
     let mut file = File::create("./output.gif").context("Failed to create output file")?;
 
@@ -122,7 +130,7 @@ fn main() -> Result<()> {
         let mut visited = vec![];
         // Start a flood erase from each corner
         for start in [0, width - 1, canvas_length - width, canvas_length - 1] {
-            eraser(start, width, &mut visited, &canvas, &mut erased, &alphas);
+            eraser(start, width, &mut visited, &canvas, &mut erased, &alphas)?;
         }
 
         // Extract a subframe from our erased image the same size as the input frame
