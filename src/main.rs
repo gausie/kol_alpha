@@ -48,23 +48,26 @@ fn eraser(
     // Set to white
     output[index as usize] = 0;
 
+    let row = index / width;
+    let column = index % width;
+
     // Look to the left if we're not on the left-most column
-    if index > index / width {
+    if column > 0 {
         eraser(index - 1, width, visited, input, output, alphas)?;
     }
 
     // Look to the right if we're not on the right-most column
-    if index < (index / width) + (width - 1) {
+    if column < width - 1 {
         eraser(index + 1, width, visited, input, output, alphas)?;
     }
 
-    // Look above if we're not at the top
-    if index > width - 1 {
+    // Look above if we're not on the top-most row
+    if row > 0 {
         eraser(index - width, width, visited, input, output, alphas)?;
     }
 
-    // Look below if we're not at the bottom
-    if index < length - width {
+    // Look below if we're not on the bottom-most row
+    if row < (length / width) - 1 {
         eraser(index + width, width, visited, input, output, alphas)?;
     }
 
