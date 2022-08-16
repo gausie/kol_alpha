@@ -1,9 +1,10 @@
-use gif::{Decoder, Encoder, Repeat};
+use anyhow::{Context, Result};
+use gif::{Decoder, Encoder, Frame, Repeat};
 use std::borrow::Cow;
 use std::fs::File;
 
 fn classify_alphas(palette: &[u8]) -> Vec<u8> {
-    let mut transparents: Vec<u8> = Vec::new();
+    let mut transparents = vec![];
     let mut i = 0;
 
     while (i * 3) < palette.len() {
@@ -62,29 +63,43 @@ fn eraser(
     }
 }
 
-fn main() {
+fn create_encoder(
+    file: &mut File,
+    width: u16,
+    height: u16,
+) -> Result<Encoder<&mut File>, gif::EncodingError> {
+    let output_palette: [u8; 6] = [255, 255, 255, 0, 0, 0];
+    let mut encoder = Encoder::new(file, width, height, &output_palette)?;
+    encoder.set_repeat(Repeat::Infinite)?;
+    Ok(encoder)
+}
+
+fn main() -> Result<()> {
     let name = "cassagnome";
-    let file = File::open("./src/".to_owned() + name + ".gif").unwrap();
-    let mut decoder = Decoder::new(file).unwrap();
+    let file = File::open(format!("./src/{}.gif", name)).context("Failed to open input file")?;
+
+    let mut decoder = Decoder::new(file).context("Failed to decode input file")?;
 
     let width = decoder.width();
     let height = decoder.height();
 
     // Assess the gif's palette and return a list of indices that we should consider
     // transparent when flood filling.
-    let alphas = classify_alphas(decoder.palette().unwrap());
+    let alphas = classify_alphas(
+        decoder
+            .palette()
+            .context("Failed to decode input file palette")?,
+    );
 
-    let mut mask = File::create("src/".to_owned() + name + ".mask.gif").unwrap();
+    let mut file = File::create("./output.gif").context("Failed to create output file")?;
 
-    let output_palette: [u8; 6] = [255, 255, 255, 0, 0, 0];
-    let mut encoder = Encoder::new(&mut mask, width, height, &output_palette).unwrap();
-    encoder.set_repeat(Repeat::Infinite).unwrap();
+    let mut encoder =
+        create_encoder(&mut file, width, height).context("Failed to create encoder")?;
 
     let canvas_length = width * height;
-    let mut canvas: Vec<u8> = (0..canvas_length).map(|_| 0).collect();
-    let black_canvas: Vec<u8> = (0..canvas_length).map(|_| 1).collect();
+    let mut canvas: Vec<u8> = vec![0; canvas_length as usize];
 
-    while let Some(frame) = decoder.read_next_frame().unwrap() {
+    while let Ok(Some(frame)) = decoder.read_next_frame() {
         // Subframe offset in canvas
         let offset = (frame.top * width) + frame.left;
         // Apply new frame to the canvas we're maintaining
@@ -102,7 +117,7 @@ fn main() {
 
         // Start with a black canvas - i.e our default is black unless touched by
         // the erase from the starting points
-        let mut erased = black_canvas.clone();
+        let mut erased = vec![1; canvas_length as usize];
 
         let mut visited = vec![];
         // Start a flood erase from each corner
@@ -121,8 +136,13 @@ fn main() {
             }
         }
 
-        let mut new_frame = frame.clone();
+        let mut new_frame = Frame::clone(frame);
         new_frame.buffer = Cow::Borrowed(&new_buffer);
-        encoder.write_frame(&new_frame).unwrap();
+
+        if let Err(e) = encoder.write_frame(&new_frame) {
+            println!("Frame was skipped as could not be written {:?}", e);
+        }
     }
+
+    Ok(())
 }
